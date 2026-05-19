@@ -1,6 +1,6 @@
-# Solution: Filleted Infinite Potential Well
+# Filleted Infinite Potential Well
 
-## 1. Problem Statement
+## 1. Statement
 
 ![original_diagram](media/image-1.png)
 
@@ -15,8 +15,8 @@ The parameters must satisfy $\gamma < \alpha$ and $2\gamma < \beta$ to ensure th
 Exploiting the even symmetry $V(-x) = V(x)$, the potential profile for $x \ge 0$ is given piecewise:
 
 $$
-V(x) = 
-\begin{cases} 
+V(x) =
+\begin{cases}
 -\beta a_0 & 0 \le x \le (\alpha - \gamma)a_0 & \text{(flat bottom)} \\[6pt]
 -(\beta - \gamma)a_0 - \sqrt{(\gamma a_0)^2 - \bigl(x - (\alpha - \gamma)a_0\bigr)^2} & (\alpha - \gamma)a_0 < x \le \alpha a_0 & \text{(lower fillet)} \\[6pt]
 -\gamma a_0 + \sqrt{(\gamma a_0)^2 - \bigl(x - (\alpha + \gamma)a_0\bigr)^2} & \alpha a_0 < x \le (\alpha + \gamma)a_0 & \text{(upper fillet)} \\[6pt]
@@ -77,6 +77,8 @@ The domain of interest is $\tilde{x} \in [-L, L]$ with $L \equiv \alpha + \gamma
 
 Equation (1) is the central object of study. Its solution yields dimensionless eigenvalues $\tilde{E}_n$ and eigenfunctions $\tilde{\psi}_n(\tilde{x})$. Physical energies are recovered via $E_n = E_0 \tilde{E}_n$, and physical positions via $x = a_0 \tilde{x}$.
 
+![Figure 1: Filleted potential profile compared to the reference rectangular well (α = 3, β = 5, γ = 1). The three piecewise regions are visible: flat bottom, lower fillet (concave), and upper fillet (convex).](media/potential_profile.png)
+
 ## 3. Analytical Methods
 
 ### 3.1 First-Order Perturbation Theory
@@ -130,7 +132,7 @@ $$
 \tag{5}
 $$
 
-The perturbation $\Delta\tilde{V}(\tilde{x})$ has no simple closed form in the filleted regions, so the integral is evaluated numerically using composite Simpson's rule with $N = 10{,}001$ quadrature points. This provides sufficient accuracy (errors $\sim h^4$) while remaining computationally efficient.
+The integral has no simple closed form in the filleted regions, so it is evaluated numerically. Implementation details — including the quadrature method and resolution — are provided in the accompanying Jupyter notebook.
 
 The total perturbed energy to first order is
 
@@ -173,17 +175,13 @@ $$
 
 The kinetic energy integral $\int |\tilde{\psi}'|^2 d\tilde{x}$ is evaluated using the analytical derivative of the trial function. All integrals are computed numerically via Simpson's rule on the half-domain $[0, L]$ and doubled by symmetry.
 
-**Minimisation.** The optimal $\lambda$ satisfies $d\tilde{E}[\lambda]/d\lambda = 0$. The derivative is evaluated using central finite differences, and the root is found using rifusaki-catkit's secant root-finding method with bisection fallback. The algorithm:
-
-1. Evaluate $d\tilde{E}/d\lambda$ at two initial points $\lambda_0$ and $1.1\lambda_0$.
-2. Apply the secant method to converge to the root.
-3. If the secant method diverges, perform a bracket search by expanding the interval until a sign change in $d\tilde{E}/d\lambda$ is found, then apply bisection.
+**Minimisation.** The optimal $\lambda$ is found by minimising $\tilde{E}[\lambda]$ numerically using root-finding on $d\tilde{E}/d\lambda = 0$. The implementation uses central finite differences for the derivative and a robust root-finding algorithm; full details are in the notebook.
 
 The minimised energy $\tilde{E}_{\text{var}} = \tilde{E}[\lambda_{\text{opt}}]$ is guaranteed by the variational principle to satisfy $\tilde{E}_{\text{var}} \ge \tilde{E}_{\text{true}}$, providing a rigorous upper bound.
 
----
-
 ## 4. Numerical Methods
+
+Numerical methods are implemented in `notebooks/filleted_well.ipynb`
 
 ### 4.1 Shooting Method
 
@@ -204,7 +202,7 @@ where $y_1 = \tilde{\psi}$ and $y_2 = \tilde{\psi}'$.
 - **Even parity:** $\tilde{\psi}(0) = 1$, $\tilde{\psi}'(0) = 0$ (arbitrary normalisation sets $\tilde{\psi}(0) = 1$).
 - **Odd parity:** $\tilde{\psi}(0) = 0$, $\tilde{\psi}'(0) = 1$ (arbitrary normalisation sets $\tilde{\psi}'(0) = 1$).
 
-**Integration** from $\tilde{x} = 0$ to $\tilde{x} = L$ is performed using rifusaki-catkit's `integrate()` function with the classical fourth-order Runge–Kutta step (`rk4_step`), using a step size of $h = 0.001$. At each step, the potential $\tilde{V}(\tilde{x})$ is evaluated. When the integration approaches $\tilde{x} = L$, the wavefunction must satisfy the Dirichlet boundary condition $\tilde{\psi}(L) = 0$.
+**Integration** from $\tilde{x} = 0$ to $\tilde{x} = L$ is performed using a standard ODE integrator with a small step size. Details of the integration scheme and step size are given in the notebook. At each step, the potential $\tilde{V}(\tilde{x})$ is evaluated. When the integration approaches $\tilde{x} = L$, the wavefunction must satisfy the Dirichlet boundary condition $\tilde{\psi}(L) = 0$.
 
 **Eigenvalue search.** For a given trial energy $\tilde{E}$, the miss-distance is
 
@@ -213,14 +211,7 @@ f(\tilde{E}) = \tilde{\psi}(L; \tilde{E}),
 \tag{11}
 $$
 
-which is the value of the wavefunction at the right boundary. An eigenvalue corresponds to $f(\tilde{E}) = 0$. The function $f(\tilde{E})$ changes sign as $\tilde{E}$ passes through an eigenvalue (this is a consequence of the oscillation theorem: between any two consecutive eigenvalues, $\tilde{\psi}(L; \tilde{E})$ undergoes one sign change). The eigenvalues are found by bisection using catkit's `bisection_step`:
-
-1. Scan upward from just above the well bottom ($\tilde{E} = -\beta + 0.01$) in increments of $0.2$, evaluating $f(\tilde{E})$ at each step.
-2. When a sign change is detected, the interval $[\tilde{E}_a, \tilde{E}_b]$ brackets exactly one root.
-3. Apply bisection to converge to the root with tolerance $10^{-8}$.
-4. For the next state, start the scan just above the previously found eigenvalue.
-
-This procedure reliably finds the lowest $n$ eigenvalues for each parity class.
+The eigenvalues are found by root-finding: the miss-distance $f(\tilde{E}) = \tilde{\psi}(L; \tilde{E})$ changes sign as $\tilde{E}$ passes through each eigenvalue (a consequence of the oscillation theorem). A scanning-and-bracketing procedure followed by convergence isolates each eigenvalue. The complete algorithm is described in the notebook.
 
 ### 4.2 Finite Difference Method (FDM)
 
@@ -248,25 +239,17 @@ $$
 
 **Boundary conditions** are handled differently for each parity:
 
-- **Odd parity:** $\tilde{\psi}(0) = 0$ and $\tilde{\psi}(L) = 0$. The grid point at $\tilde{x} = 0$ is excluded, and the first interior point is at $\tilde{x} = h$. The standard tridiagonal Hamiltonian (14) applies directly, giving a symmetric matrix suitable for `scipy.linalg.eigh_tridiagonal`.
+- **Odd parity:** $\tilde{\psi}(0) = 0$ and $\tilde{\psi}(L) = 0$. The grid point at $\tilde{x} = 0$ is excluded, and the first interior point is at $\tilde{x} = h$. The standard tridiagonal Hamiltonian applies directly.
 
-- **Even parity:** $\tilde{\psi}'(0) = 0$ (Neumann boundary condition) and $\tilde{\psi}(L) = 0$. Using a ghost-point method, the Neumann condition implies $\tilde{\psi}_{-1} = \tilde{\psi}_1$, so the second derivative at $\tilde{x} = 0$ becomes
+- **Even parity:** At $\tilde{x} = 0$ for even parity, the Neumann boundary condition $\tilde{\psi}'(0) = 0$ is enforced using a ghost-point method. A similarity transform is then applied to restore matrix symmetry, allowing the use of efficient symmetric eigensolvers. The full construction is detailed in the notebook.
 
-  $$
-  \tilde{\psi}''(0) \approx \frac{\tilde{\psi}_1 - 2\tilde{\psi}_0 + \tilde{\psi}_1}{h^2} = \frac{2(\tilde{\psi}_1 - \tilde{\psi}_0)}{h^2}.
-  $$
+**Eigenvalue solution.** The symmetric tridiagonal matrix is diagonalized using an efficient algorithm that exploits the tridiagonal structure. Only bound states ($\tilde{E} < 0$) are retained.
 
-  This gives $H_{00} = 2/h^2 + \tilde{V}_0$ on the diagonal but $H_{01} = -2/h^2$ as the off-diagonal, making the raw matrix non-symmetric because $H_{10} = -1/h^2 \ne H_{01}$. To restore symmetry (required by `eigh_tridiagonal`), we apply a similarity transform $D H D^{-1}$ with $D = \operatorname{diag}(1, \sqrt{2}, \sqrt{2}, \ldots)$. This preserves eigenvalues and produces symmetric off-diagonal elements $-\sqrt{2}/h^2$. After solving, the eigenvectors are unscaled back by dividing all elements except the first by $\sqrt{2}$.
-
-**Eigenvalue solution.** The symmetric tridiagonal matrix is diagonalized using `scipy.linalg.eigh_tridiagonal`, which exploits the tridiagonal structure for $\mathcal{O}(N^2)$ complexity (vs. $\mathcal{O}(N^3)$ for dense matrices). Only bound states ($\tilde{E} < 0$) are retained.
-
-**Normalisation.** Each eigenvector $\boldsymbol{\psi}$ on the half-domain is extended to the full domain $[-L, L]$ by symmetry ($\tilde{\psi}(-\tilde{x}) = \tilde{\psi}(\tilde{x})$ for even states, $\tilde{\psi}(-\tilde{x}) = -\tilde{\psi}(\tilde{x})$ for odd states) and normalised using Simpson's rule so that $\int_{-L}^{L} |\tilde{\psi}|^2 d\tilde{x} = 1$.
-
----
+**Normalisation.** Each eigenvector on the half-domain $[0, L]$ is extended to the full domain $[-L, L]$ by parity symmetry and normalised to unity. Implementation details are in the notebook.
 
 ## 5. Results for $\alpha = 3$, $\beta = 5$, $\gamma = 1$
 
-The default parameter set defines a well with total half-width $L = \alpha + \gamma = 4$. In physical units (for an electron), the well is approximately $2L a_0 \approx 0.42\ \text{nm}$ wide and $\beta E_0 \approx 68\ \text{eV}$ deep — comparable to the confining potentials found in semiconductor quantum dots and nanostructures.
+The default parameter set defines a well with total half-width $L = \alpha + \gamma = 4$. In physical units (for an electron), the well is approximately $2L a_0 \approx 0.42\ \text{nm}$ wide and $\beta E_0 \approx 68\ \text{eV}$ deep.
 
 ### 5.1 Energy Levels
 
@@ -295,7 +278,9 @@ Several observations emerge:
 
 ### 5.2 Wavefunctions
 
-Figure 1 (generated by the `plotting` module) shows the four lowest wavefunctions superimposed on the potential profile. The key features are:
+![Figure 2: The four lowest wavefunctions superimposed on the potential profile (α = 3, β = 5, γ = 1). Even-parity states (n = 1, 3) are symmetric; odd-parity states (n = 2, 4) are antisymmetric. Each wavefunction is shifted vertically to its energy level and scaled for visibility.](media/wavefunctions.png)
+
+The key features are:
 
 - **Even states ($n = 1, 3$)**: The wavefunctions are symmetric about $\tilde{x} = 0$. The ground state has a single antinode at the centre and decays smoothly toward the walls. The third state has three antinodes.
 
@@ -317,22 +302,7 @@ Converting to SI units for an electron ($m = m_e$):
 - **Third excited state:** $\tilde{E}_4 \approx -1.6869$, so $E_4 \approx -22.95\ \text{eV}$.
 - **Level spacing:** $\Delta E_{12} \approx 8.8\ \text{eV}$ decreases to $\Delta E_{34} \approx 19.1\ \text{eV}$; the spacing does not decrease monotonically because the well is not a simple harmonic oscillator — the higher states approach the continuum threshold more rapidly.
 
-This is a model potential that could represent an electron confined in a quantum dot with soft boundaries, or a particle in a nanostructure where fabrication imperfections or deliberate design smooth the otherwise sharp corners. The fillet radius $\gamma$ quantifies the degree of smoothing, and the analytical and numerical toolkit developed here allows systematic exploration of how this smoothing affects the energy spectrum.
-
-### 5.4 Method Performance
-
-The computational cost of each method is summarised below (single-threaded execution on a standard workstation), alongside the key accuracy metrics:
-
-| Method | Wall time | Accuracy vs. FDM |
-|--------|-----------|-------------------|
-| Perturbation theory | 0.34 s | $\sim 0.06\%$ (ground state); degrades for $n \ge 2$ |
-| Variational method | 5.63 s | $\sim 0.18\%$ upper bound (ground state); $\sim 0.54\%$ (first excited) |
-| FDM ($N=2000$) | 0.20 s | Reference (essentially exact for this $N$) |
-| Shooting ($h=0.001$) | 35.9 s | $|\Delta\tilde{E}| \le 8 \times 10^{-4}$ vs. FDM |
-
-The FDM is the clear winner in both speed and accuracy: it solves for all bound states simultaneously in a fraction of a second. The shooting method, while equally accurate, is substantially slower because each eigenvalue requires its own bracket scan and bisection loop, each of which involves full RK4 integrations. Perturbation theory is the fastest analytical method but gives no wavefunction information and is unreliable beyond the ground state. The variational method provides the only rigorous upper bounds but is the most computationally expensive of the analytical approaches due to the numerical minimisation of $\tilde{E}[\lambda]$.
-
----
+This is a model potential that could represent an electron confined in a quantum dot with soft boundaries, or a particle in a nanostructure where fabrication imperfections or deliberate design smooth the otherwise sharp corners. The fillet radius $\gamma$ quantifies the degree of smoothing, and the analytical and numerical toolkit developed here allows systematic exploration of how this smoothing affects the energy spectrum. (Performance metrics and timing comparisons for all methods are provided in the notebook.)
 
 ## 6. Discussion
 
@@ -340,20 +310,20 @@ The FDM is the clear winner in both speed and accuracy: it solves for all bound 
 
 **Perturbation theory** offers the most analytical insight. The expression for the unperturbed energies (Eq. 3) reveals the dominant $n^2$ scaling, and the first-order correction (Eq. 5) can be interpreted physically: it represents the weighted average of the "extra" potential experienced by the particle in the filleted regions. The method is computationally inexpensive (milliseconds per state) and provides a clear conceptual link to the familiar infinite square well. However, its accuracy is limited when $\gamma$ is large (strong smoothing) or when the perturbation is not small compared to the level spacing. It also gives no information about the wavefunction distortion.
 
-**The variational method** is systematically improvable: one can add more variational parameters to the trial function to approach the exact result arbitrarily closely. The chosen trial functions capture the essential physics — the boundary conditions, the parity, and the effect of softening via the Gaussian envelope — with a single parameter $\lambda$. The minimisation landscape $E[\lambda]$ is smooth and well-behaved (shown in the convergence plot), making root-finding robust. The method provides rigorous upper bounds, which is valuable for validation. Its limitation is that constructing good trial functions for excited states requires ensuring orthogonality to lower states, which becomes increasingly difficult for $n > 2$.
+**The variational method** is systematically improvable: one can add more variational parameters to the trial function to approach the exact result arbitrarily closely. The chosen trial functions capture the essential physics — the boundary conditions, the parity, and the effect of softening via the Gaussian envelope — with a single parameter $\lambda$. The minimisation landscape $E[\lambda]$ is smooth and well-behaved (see Figure 3), making root-finding robust.
+
+![Figure 3: Variational energy functional Ẽ[λ] for the ground state (even parity, purple) and first excited state (odd parity, orange) at α = 3, β = 5, γ = 1. The dots mark the minima where dẼ/dλ = 0; the optimal λ values are 2.82 (ground) and 4.34 (excited).](media/variational_convergence.png)
+
+The method provides rigorous upper bounds, which is valuable for validation. Its limitation is that constructing good trial functions for excited states requires ensuring orthogonality to lower states, which becomes increasingly difficult for $n > 2$.
 
 **The shooting method** is highly accurate and handles arbitrary potentials with ease — one simply changes the potential function and re-runs. The RK4 integrator with $h = 0.001$ provides $\mathcal{O}(h^4)$ accuracy, and the bisection root-finder is unconditionally convergent. The main challenge is bracketing: one must locate sign changes in $\tilde{\psi}(L; \tilde{E})$, which requires scanning the energy axis. For deep wells with many bound states, this can be tedious, but the automated bracket-scanning algorithm handles it reliably.
 
 **The finite difference method (FDM)** is the most robust approach. It reduces the problem to a standard symmetric tridiagonal eigenvalue problem, which is solved efficiently and stably by specialised linear algebra routines. All eigenvalues are obtained simultaneously, and the eigenvectors are directly available for wavefunction visualisation. The accuracy improves as $\mathcal{O}(h^2)$ with grid refinement, and $N = 2000$ points is more than sufficient for $10^{-4}$ energy accuracy. The only subtlety is the Neumann boundary condition for even parity states, which requires the similarity transform to maintain matrix symmetry — a detail that is handled cleanly in the implementation.
 
-### 6.2 The Role of rifusaki-catkit
+![Figure 4: Comparison of dimensionless energy eigenvalues across all four methods for α = 3, β = 5, γ = 1. FDM and shooting agree to high precision (|ΔẼ| ≤ 8 × 10⁻⁴). Perturbation theory overestimates binding for n = 1 but degrades for higher states. The variational method provides rigorous upper bounds for n = 1, 2 only.](media/method_comparison.png)
 
-An important methodological choice in this work is the use of **rifusaki-catkit**, a personal numerical library, for ODE integration and root-finding in the shooting method. Catkit provides:
-
-- **ODE integrators:** `rk4_step` (classical 4th-order Runge–Kutta), `rk2_step` (midpoint method), and `euler_step`. RK4 is used here for its balance of accuracy and simplicity.
-- **Root-finders:** `secant_step`, `bisection_step`, and `newton_step`, all wrapped in a unified `find_root()` interface.
-
-This replaces the equivalent functionality from `scipy.integrate.solve_ivp` and `scipy.optimize` with a lightweight, transparent implementation. The FDM, however, still uses `scipy.linalg.eigh_tridiagonal` for the tridiagonal eigenvalue solver, as this is a highly optimised LAPACK routine that has no equivalent in catkit.
+### 6.2 Implementation Note
+The analytical and numerical methods are implemented in a modular Python package (`qm_well`). ODE integration and root-finding for the shooting and variational methods are handled by a lightweight personal library (`rifusaki-catkit`), while the FDM eigenvalue solve uses standard scientific Python libraries. The full package structure and dependency details are documented in the Jupyter notebook.
 
 ### 6.3 Parameter Sensitivity
 
@@ -364,8 +334,6 @@ The code is modular and can be used to explore different parameter regimes. For 
 - **Increasing $\alpha$ (wider well):** Reduces the level spacing (as $1/\alpha^2$) and increases the number of bound states.
 
 The condition $\gamma < \alpha$ ensures the lower fillets do not overlap at the centre, and $2\gamma < \beta$ ensures the fillets do not exceed the well depth — these are enforced by the problem geometry.
-
----
 
 ## 7. Conclusion
 
@@ -379,20 +347,4 @@ We have formulated and solved the quantum-mechanical problem of a particle confi
 
 4. **The finite difference method** solved the discretized eigenvalue problem efficiently, providing all bound-state energies and wavefunctions simultaneously with excellent precision.
 
-For the representative parameters $\alpha = 3$, $\beta = 5$, $\gamma = 1$, the well supports 4 bound states with dimensionless energies ranging from $\tilde{E}_1 \approx -4.7825$ to $\tilde{E}_4 \approx -1.6869$ (physical energies $-65.07\ \text{eV}$ to $-22.95\ \text{eV}$ for an electron). The FDM and shooting results agree to $|\Delta\tilde{E}| \le 8 \times 10^{-4}$, confirming the correctness of both implementations. Perturbation theory overestimates binding for the ground state (error $\sim 0.06\%$) but degrades for higher states and spuriously predicts 2 additional bound states — a cautionary illustration of the method's limitations when the perturbation is not uniformly small.
-
-The complete solution — comprising the `qm_well` Python package with modules for potential definition, analytical methods, numerical solvers, and visualisation — provides a modular, extensible framework for studying the effect of corner smoothing on quantum confinement. The code can be readily adapted to other potential shapes and parameter regimes, making it a useful tool for both pedagogical exploration and research applications in quantum nanostructures.
-
----
-
-## Appendix: Code Structure
-
-The `qm_well` package is organised as follows:
-
-| Module | Purpose |
-|--------|---------|
-| `potential.py` | Defines the piecewise potential $\tilde{V}(\tilde{x})$ and its derivative, plus the rectangular reference potential |
-| `units.py` | Physical constants and dimensionless unit conversions |
-| `analytical.py` | Perturbation theory (Simpson integration, first-order correction) and variational method (trial functions, energy functional, $\lambda$ optimisation) |
-| `numerical.py` | Shooting method (ODE system, RK4 integration, bisection eigenvalue search) and FDM (tridiagonal Hamiltonian construction, `eigh_tridiagonal` solution, normalisation) |
-| `plotting.py` | Publication-quality plots: potential profile, energy levels, wavefunctions, method comparison, variational convergence |
+For the representative parameters $\alpha = 3$, $\beta = 5$, $\gamma = 1$, the well supports 4 bound states with dimensionless energies ranging from $\tilde{E}_1 \approx -4.7825$ to $\tilde{E}_4 \approx -1.6869$ (physical energies $-65.07\ \text{eV}$ to $-22.95\ \text{eV}$ for an electron). The FDM and shooting results agree to $|\Delta\tilde{E}| \le 8 \times 10^{-4}$, confirming the correctness of both implementations. Perturbation theory overestimates binding for the ground state (error $\sim 0.06\%$) but degrades for higher states and predicts 2 nonexistent additional bound states.
